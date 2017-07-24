@@ -2,26 +2,18 @@ function acc(w, data, state)
     sumloss = numloss = 0
 
     for d in data
+        x = d[1];
+        y = d[2];
 
-        refT = d["RefSegsTrue"];
-        perT = d["PerSegsTrue"];
-        perF = d["PerSegsFalse"];
+        per = x[:,1:1000];
+        ref = x[:, 1001:2000];
 
-        ref = refT[rand(1:length(refT))]
-        for per in perT
-            z = model(w, per', ref', copy(state))
-            sumloss += mean((z .* 1) .> 0)
-            numloss += 1
-        end
+        z = model(w, per, ref, copy(state))
 
-        for per in perF
-            z = model(w, per', ref', copy(state))
-            sumloss += mean((z .* -1) .> 0)
-            numloss += 1
-        end
-
+        sumloss += mean((z .* y) .> 0)
+        numloss += 1
     end
-    sumloss / numloss
+    sumloss/numloss
 end
 
 function init_rnn_weights(hidden, embed)
@@ -53,7 +45,6 @@ function initstate(hidden_layers, batchsize,atype=Array{Float32})
     end
     return map(k->convert(atype,k), state)
 end
-
 
 function lstm(weight,bias,hidden,cell,input)
     gates   = hcat(input,hidden) * weight .+ bias
@@ -89,13 +80,11 @@ function model(w,x,y,s)
     for i in range(1,10)
         xfeat = rnn(w,s1,x[:,100*(i-1)+1:100*i])
     end
-    
     s2 = copy(s)
     yfeat = 0
     for i in range(1,10)
         yfeat = rnn(w,s2,y[:,100*(i-1)+1:100*i])
     end
-
     hcat(xfeat,yfeat)*w[end-1] .+ w[end]
 end
 
@@ -104,27 +93,20 @@ lgrad = grad(loss);
 function train!(m, data, state, opts)
     count = 0
     for d in data
-        refT = d["RefSegsTrue"];
-        perT = d["PerSegsTrue"];
-        perF = d["PerSegsFalse"];
+        x = d[1];
+        y = d[2];
 
-        ref = refT[rand(1:length(refT))]
-        for per in perT
-            dw = lgrad(m, per', ref', 1, copy(state))
-            for i in 1:length(m)
-                update!(m[i], dw[i], opts[i])
-            end
-        end
+        per = x[:,1:1000];
+        ref = x[:, 1001:2000];
 
-        for per in perF
-            dw = lgrad(m, per', ref', -1, copy(state))
-            for i in 1:length(m)
-                update!(m[i], dw[i], opts[i])
-            end
+        dw = lgrad(m, per, ref, y, copy(state))
+
+        for i in 1:length(m)
+            update!(m[i], dw[i], opts[i])
         end
 
         count += 1
-        println(count)
+        #println(count)
     end
 end
 
@@ -137,20 +119,20 @@ function init_params(model)
 end
 
 function modelrun(data; epochs=100)
-    model = init_rnn_weights([512], 100)
-    state = initstate([512], 1)
-    opts = init_params(model);
+    w = init_rnn_weights([1], 100)
+    state = initstate([1], 1)
+    opts = init_params(w);
 
     println("Initialized model")
     println("Accuracies for: train-dev sets:")
 
-    msg(e) = println((e,map(d->acc(model,d,state),data)...)); 
+    msg(e) = println((e,map(d->acc(w,d,state),data)...)); 
     msg(0)
 
     for epoch = 1:epochs
       # Alternative: one could keep the model with highest accuracy in development set results
       # and return that one instead of the last model
-        train!(model, data[1], state, opts)#training on the train set (data[1])
+        train!(w, data[1], state, opts)#training on the train set (data[1])
         msg(epoch)
     end
     return model

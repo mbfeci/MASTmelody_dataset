@@ -4,7 +4,7 @@ for p in ("JSON","JLD","DSP","Knet")
 end
 
 using Knet
-include("model4.jl")
+include("model6.jl")
 
 function splitData(data; opt = 2, train = 28, dev = 4, test = 8)
     perm = randperm(length(data))
@@ -21,10 +21,9 @@ function splitData(data; opt = 2, train = 28, dev = 4, test = 8)
 end
 
 
-function minibatch(data, batchsize=100)
+function minibatch2(data, batchsize=100)
     result = Any[]
     for d in data
-
         refT = d["RefSegsTrue"];
         perT = d["PerSegsTrue"];
         perF = d["PerSegsFalse"];
@@ -54,10 +53,159 @@ function minibatch(data, batchsize=100)
     return result
 end
 
+function minibatch3(data; batch = 100, splt=((200,200), (73,73)))
+  tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
+  fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
+  ref = Float32[];
+  idx =  Array{Any,1}();
+  count = 1;
+  for d in data
+    refT = d["RefSegsTrue"];#in julia string indexes can be safely used :)
+    perT = d["PerSegsTrue"];
+    perF = d["PerSegsFalse"];
+
+    #Pair all reference segments with performance segments marked as true/pass
+    # compute the feature vector and the add to true-pairs-data
+    
+    #refT = refT[randperm(length(refT))[1:5]]
+    for j=1:length(perT)#all true-performance recordings
+        # Computation of the feature as histogram of differences after matching two signals by DTW
+        # the vector is appended to true-output pair
+        # If you would prefer another input for the MLP, consider modifying this line
+        append!(tout, perT[j]');
+        push!(idx, (count, count+length(refT)))
+    end
+
+    #pair all reference segments with performance segments marked as false/fail
+    # compute the feature vector and the add to false-pairs-data
+    for j=1:length(perF)#all false-performance recordings
+        #computation of the feature as histogram of differences after matching two signals by DTW
+        # the vector is appended to false-output pair
+        # If you would prefer another input for the MLP, consider modifying this line
+        append!(fout, perF[j]');
+        push!(idx, (count, count+length(refT)))
+    end
+
+    for i=1:length(refT)
+        append!(ref, refT[i]')
+    end
+    println(length(refT))
+    count += length(refT);
+  end
+
+  #re-shape feature vectors computed from true and false pairs in matrix form and return both
+  rows=1000;
+  cols = div(length(tout),rows);
+  tout = reshape(tout, (cols,rows));
+  cols = div(length(fout),rows);
+  fout = reshape(fout, (cols,rows));
+
+  (nt,nd) = size(tout);#nt: number of true-pairs
+  (nf,nd) = size(fout);#nf: number of false-pairs
+  rt = randperm(nt);#forming random order of indexes to shuffle
+  rf = randperm(nf);
+  nt = nf = 0
+  bdata = Any[];#batch data for all sets of splits
+  for (t,f) in splt
+    if(t>0 && f>0)#if there exists (0,0) in splits, skip it
+      #forming input-vector for MLP
+      # Left half contains true samples, right half contains false samples
+      x = vcat(tout[rt[nt+1:nt+t],:], fout[rf[nf+1:nf+f],:]);
+      #forming the output vector: 1:true, -1: false
+      y = vcat(ones(Float32,1,t), -ones(Float32,1,f))
+
+      nt += t; nf += f;
+      r = randperm(t+f);
+      batches = Any[];
+      #forming a single batch in each loop, putting in 'batches'
+      for i=1:batch:length(r)-batch
+        xbatch = x[r[i:i+batch-1],:];
+        ybatch = y[r[i:i+batch-1],:];
+        push!(batches, (xbatch, ybatch))
+      end
+      #adding to 'batches' for this split in 'bdata'
+      push!(bdata, batches);
+    end
+  end
+  return bdata
+  
+end
+
+
+function minibatch3(data; batch = 1, splt=((10,10), (480,480)))
+  tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
+  fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
+
+  for d in data
+    refT = d["RefSegsTrue"];#in julia string indexes can be safely used :)
+    perT = d["PerSegsTrue"];
+    perF = d["PerSegsFalse"];
+
+    #Pair all reference segments with performance segments marked as true/pass
+    # compute the feature vector and the add to true-pairs-data
+    
+    refT = refT[randperm(length(refT))[1:22]]
+
+    for i=1:length(refT)
+        for j=1:length(perT)#all true-performance recordings
+            # Computation of the feature as histogram of differences after matching two signals by DTW
+            # the vector is appended to true-output pair
+            # If you would prefer another input for the MLP, consider modifying this line
+            append!(tout, hcat(perT[j]',refT[i]'));
+        end
+    end
+
+    for i=1:length(refT)
+        for j=1:length(perF)#all false-performance recordings
+            #computation of the feature as histogram of differences after matching two signals by DTW
+            # the vector is appended to false-output pair
+            # If you would prefer another input for the MLP, consider modifying this line
+            append!(fout, hcat(perF[j]',refT[i]'));
+        end
+    end
+  end
+
+  #re-shape feature vectors computed from true and false pairs in matrix form and return both
+  rows=2000;
+  cols = div(length(tout),rows);
+  tout = reshape(tout, (cols,rows));
+  cols = div(length(fout),rows);
+  fout = reshape(fout, (cols,rows));
+
+  (nt, nd) = size(tout);#nt: number of true-pairs
+  (nf, nd) = size(fout);#nf: number of false-pairs
+  rt = randperm(nt);#forming random order of indexes to shuffle
+  rf = randperm(nf);
+  nt = nf = 0
+  bdata = Any[];#batch data for all sets of splits
+  for (t,f) in splt
+    if(t>0 && f>0)#if there exists (0,0) in splits, skip it
+      #forming input-vector for MLP
+      # Left half contains true samples, right half contains false samples
+      x = vcat(tout[rt[nt+1:nt+t],:], fout[rf[nf+1:nf+f],:]);
+      #forming the output vector: 1:true, -1: false
+      y = vcat(ones(Float32,t,1), -ones(Float32,f,1))
+
+      nt += t; nf += f;
+      r = randperm(t+f);
+      batches = Any[];
+      #forming a single batch in each loop, putting in 'batches'
+      for i=1:batch:length(r)-batch
+        xbatch = x[r[i:i+batch-1],:];
+        ybatch = y[r[i:i+batch-1],:];
+        push!(batches, (xbatch, ybatch))
+      end
+      #adding to 'batches' for this split in 'bdata'
+      push!(bdata, batches);
+    end
+  end
+  return bdata
+end
+
 
 function runTests(data)
 
-    spdata = splitData(data);
+    spdata = minibatch3(data);
     println("Data splitted.")
 
     #spdata = map(x->minibatch(x,batchsize), spdata)
