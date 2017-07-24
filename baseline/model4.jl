@@ -87,7 +87,7 @@ end
 function init_params(model)
     prms = Array(Any, length(model))
     for i in 1:length(model)
-        prms[i] = Adam(;lr=0)
+        prms[i] = Adam(;lr=0.00001)
     end
     return prms
 end
