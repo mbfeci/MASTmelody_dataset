@@ -132,7 +132,7 @@ function minibatch2(data; batch = 100, splt=((200,200), (73,73)))
 end
 
 
-function minibatch3(data; batch = 100, splt=((4800,8000), (1100,2500)))
+function minibatch3(data; batch = 100, splt=((6000,6000),))
   tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
   fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
 
@@ -190,7 +190,7 @@ function minibatch3(data; batch = 100, splt=((4800,8000), (1100,2500)))
       r = randperm(t+f);
       batches = Any[];
       #forming a single batch in each loop, putting in 'batches'
-      for i=1:batch:length(r)-batch
+      for i=1:batch:length(r)-batch+1
         xbatch = x[r[i:i+batch-1],:];
         ybatch = y[r[i:i+batch-1],:];
         push!(batches, (xbatch, ybatch))

@@ -119,8 +119,8 @@ function init_params(model)
 end
 
 function modelrun(data; epochs=100)
-    w = init_rnn_weights([1], 100)
-    state = initstate([1], 100)
+    w = init_rnn_weights([256], 100)
+    state = initstate([256], 100)
     opts = init_params(w);
 
     println("Initialized model")

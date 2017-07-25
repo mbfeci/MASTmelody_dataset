@@ -3,29 +3,23 @@ function acc(model, data, state)
 
     for d in data
 
-        refT = d["RefSegsTrue"];
-        perT = d["PerSegsTrue"];
-        perF = d["PerSegsFalse"];
+        x = d[1];
+        y = d[2];
 
-        ref = refT[rand(1:length(refT))]
-        for per in perT
-            z = predict(model, per', ref', copy(state))
-            sumloss += mean((z .* 1) .> 0)
-            numloss += 1
-        end
+        per = x[:,1:1000];
+        ref = x[:, 1001:2000];
 
-        for per in perF
-            z = predict(model, per', ref', copy(state))
-            sumloss += mean((z .* -1) .> 0)
-            numloss += 1
-        end
+        z = predict(model, per, ref, copy(state))
+        sumloss += mean((z .* 1) .> 0)
+        numloss += 1
 
+        println(sumloss)
     end
     sumloss / numloss
 end
 
 function init_rnn_weights(hidden, vocab, embed)
-    model = Array(Any, 2*length(hidden)+2)
+    model = Array(Any, 2*length(hidden))
     X = embed
     for k = 1:length(hidden)
         H = hidden[k]
@@ -35,8 +29,6 @@ function init_rnn_weights(hidden, vocab, embed)
         X = H
     end
 
-    model[end-1] = xavier(hidden[end],vocab)
-    model[end] = zeros(1,vocab)           
     #model[end] = xavier(vocab,embed)    #We (word embedding vector)
     return model
 end
@@ -72,14 +64,14 @@ function rnn(w,s,input; start = 0)
         input = s[i]
     end
     #input = dropout(input,pdrop)
-    return input*w[end-1] .+ w[end]
+    return input#*w[end-1] .+ w[end]
 end
 
 function eucloss(w,x,y,z,s)
     xfeat = rnn(w,copy(s),x)
     yfeat = rnn(w,copy(s),y)
 
-    z*eucledian(xfeat,yfeat)
+    mean(z*eucledian(xfeat,yfeat))
 end
 
 function eucledian(vec1, vec2)
@@ -105,23 +97,15 @@ eucgrad = grad(loss);
 function train!(m, data, state, opts)
     count = 0
     for d in data
-        refT = d["RefSegsTrue"];
-        perT = d["PerSegsTrue"];
-        perF = d["PerSegsFalse"];
+        x = d[1];
+        y = d[2];
 
-        ref = refT[rand(1:length(refT))]
-        for per in perT
-            dw = eucgrad(m, per', ref', 1, copy(state))
-            for i in 1:length(m)
-                update!(m[i], dw[i], opts[i])
-            end
-        end
+        per = x[:,1:1000];
+        ref = x[:, 1001:2000];
 
-        for per in perF
-            dw = eucgrad(m, per', ref', -1, copy(state))
-            for i in 1:length(m)
-                update!(m[i], dw[i], opts[i])
-            end
+        dw = eucgrad(m, per, ref, y, copy(state))
+        for i in 1:length(m)
+            update!(m[i], dw[i], opts[i])
         end
 
         count += 1
@@ -140,7 +124,7 @@ end
 
 function modelrun(data; epochs=100)
     model = init_rnn_weights([512], 1000, 1000)
-    state = initstate([512], 1)
+    state = initstate([512], 100)
     opts = init_params(model);
 
     println("Initialized model")
