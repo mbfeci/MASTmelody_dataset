@@ -21,7 +21,7 @@ function splitData(data; opt = 2, train = 28, dev = 4, test = 8)
 end
 
 
-function minibatch2(data, batchsize=100)
+function minibatch(data, batchsize=100)
     result = Any[]
     for d in data
         refT = d["RefSegsTrue"];
@@ -53,7 +53,7 @@ function minibatch2(data, batchsize=100)
     return result
 end
 
-function minibatch3(data; batch = 100, splt=((200,200), (73,73)))
+function minibatch2(data; batch = 100, splt=((200,200), (73,73)))
   tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
   fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
   ref = Float32[];
@@ -132,7 +132,7 @@ function minibatch3(data; batch = 100, splt=((200,200), (73,73)))
 end
 
 
-function minibatch3(data; batch = 1, splt=((10,10), (480,480)))
+function minibatch3(data; batch = 100, splt=((4800,8000), (1100,2500)))
   tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
   fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
 
