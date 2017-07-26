@@ -56,7 +56,7 @@ end
 function minibatch2(data; batch = 100, splt=((200,200), (73,73)))
   tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
   fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
-  ref = Float32[];
+  ref = Any[];
   idx =  Array{Any,1}();
   count = 1;
   for d in data
@@ -87,7 +87,7 @@ function minibatch2(data; batch = 100, splt=((200,200), (73,73)))
     end
 
     for i=1:length(refT)
-        append!(ref, refT[i]')
+        push!(ref, refT[i]')
     end
     println(length(refT))
     count += length(refT);
@@ -132,7 +132,7 @@ function minibatch2(data; batch = 100, splt=((200,200), (73,73)))
 end
 
 
-function minibatch3(data; batch = 100, splt=((6000,6000),))
+function minibatch3(data; batch = 50, splt=((3000,3000),))
   tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
   fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
 
@@ -151,7 +151,7 @@ function minibatch3(data; batch = 100, splt=((6000,6000),))
             # Computation of the feature as histogram of differences after matching two signals by DTW
             # the vector is appended to true-output pair
             # If you would prefer another input for the MLP, consider modifying this line
-            append!(tout, hcat(perT[j]',refT[i]'));
+            append!(tout, vcat(perT[j],refT[i]));
         end
     end
 
@@ -160,7 +160,7 @@ function minibatch3(data; batch = 100, splt=((6000,6000),))
             #computation of the feature as histogram of differences after matching two signals by DTW
             # the vector is appended to false-output pair
             # If you would prefer another input for the MLP, consider modifying this line
-            append!(fout, hcat(perF[j]',refT[i]'));
+            append!(fout, vcat(perF[j],refT[i]));
         end
     end
   end
@@ -168,9 +168,12 @@ function minibatch3(data; batch = 100, splt=((6000,6000),))
   #re-shape feature vectors computed from true and false pairs in matrix form and return both
   rows=2000;
   cols = div(length(tout),rows);
-  tout = reshape(tout, (cols,rows));
+  tout = reshape(tout, (rows,cols));
   cols = div(length(fout),rows);
-  fout = reshape(fout, (cols,rows));
+  fout = reshape(fout, (rows,cols));
+
+  tout = tout'
+  fout = fout'
 
   (nt, nd) = size(tout);#nt: number of true-pairs
   (nf, nd) = size(fout);#nf: number of false-pairs
@@ -202,15 +205,36 @@ function minibatch3(data; batch = 100, splt=((6000,6000),))
   return bdata
 end
 
+function decideSplits(pairData,option)
+  if option==1
+    (tempX,tempY)=pairData;
+    minNumPairs=min(size(tempX,2),size(tempY,2));
+    splitRatio=0.9;#split for train and development
+    splts=((Int(floor(minNumPairs*splitRatio)),Int(floor(minNumPairs*splitRatio))),(Int(floor(minNumPairs*(1-splitRatio))),Int(floor(minNumPairs*(1-splitRatio)))));
+    return splts;
+  elseif option==2
+    (tempX,tempY)=pairData;
+    #minimum of number of true-pairs and false-pairs will be used for training
+    minNumPairs=min(size(tempX,2),size(tempY,2));
+    splts=((minNumPairs,minNumPairs),(0,0));
+    return splts;
+  end
+end
 
 function runTests(data)
 
-    spdata = minibatch3(data);
+    #=
+    spdata = splitData(data)
+    trn = minibatch3(spdata[1]);
+    tst = minibatch3(spdata[2]; splt = ((500,500),));
+    =#
+
     println("Data splitted.")
 
     #spdata = map(x->minibatch(x,batchsize), spdata)
     #println("Minibatch completed.")
-    modelrun(spdata)
+    modelrun(data)
+
 
 end
 

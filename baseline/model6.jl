@@ -118,22 +118,24 @@ function init_params(model)
     return prms
 end
 
-function modelrun(data; epochs=100)
-    w = init_rnn_weights([256], 100)
-    state = initstate([256], 100)
+function modelrun(data; epochs=4)
+    w = init_rnn_weights([64], 100)
+    state = initstate([64], 50)
     opts = init_params(w);
+
 
     println("Initialized model")
     println("Accuracies for: train-dev sets:")
 
-    msg(e) = println((e,map(d->acc(w,d,state),data)...)); 
+    msg(e) = println((e,map(d->acc(w,d,copy(state)),data)...)); 
     msg(0)
 
     for epoch = 1:epochs
       # Alternative: one could keep the model with highest accuracy in development set results
       # and return that one instead of the last model
-        train!(w, data[1], state, opts)#training on the train set (data[1])
+        train!(w, trn[1], state, opts)#training on the train set (data[1])
         msg(epoch)
     end
+
     return model
 end
