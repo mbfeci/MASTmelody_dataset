@@ -120,7 +120,7 @@ function init_params(model)
     return prms
 end
 
-function modelrun(data; epochs=100)
+function modelrun(data, tst; epochs=100)
     w = init_rnn_weights([256], 100)
     state = initstate([256], 100)
     opts = init_params(w);
@@ -137,5 +137,7 @@ function modelrun(data; epochs=100)
         train!(w, data[1], state, opts)#training on the train set (data[1])
         msg(epoch)
     end
+
+    println(map(d->acc(w,d,state),tst)," ");
     return model
 end

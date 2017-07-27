@@ -20,39 +20,6 @@ function splitData(data; opt = 2, train = 28, dev = 4, test = 8)
     end
 end
 
-
-function minibatch(data, batchsize=100)
-    result = Any[]
-    for d in data
-        refT = d["RefSegsTrue"];
-        perT = d["PerSegsTrue"];
-        perF = d["PerSegsFalse"];
-
-        ref = refT[rand(1:length(refT))]
-
-        perSize = min(length(perT), length(perF))
-
-        num_of_batches = div(perSize, batchsize)
-
-        permT = randperm(length(perT))
-        permF = randperm(length(perF))
-
-        for i in 1:batchsize:num_of_batches*batchsize
-            per = Array(Float32, batchsize, length(refT[1]))
-            y = hcat(ones(Float32,1,batchsize/2), -ones(Float32,1,batchsize/2))
-            for j in 1:batchsize/2
-                per[i+j-1,:] = perT[permT[i+j-1]]
-            end
-            for j in batchsize/2+1:batchsize
-                per[i+j-1,:] = perF[permF[i+j-1]]
-            end
-            push!(result, (ref,per,y))
-        end
-
-    end
-    return result
-end
-
 function minibatch2(data; batch = 100, splt=((200,200), (73,73)))
   tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
   fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
@@ -132,7 +99,7 @@ function minibatch2(data; batch = 100, splt=((200,200), (73,73)))
 end
 
 
-function minibatch3(data; batch = 50, splt=((3000,3000),))
+function minibatch3(data; batch = 100, splt=((3000,3000),))
   tout = Float32[];#tout: true-out: matching melodic pairs' (piano-singing) feature
   fout = Float32[];#fout: false-out: non-matching melodic pairs' (piano-singing) feature
 
@@ -144,7 +111,7 @@ function minibatch3(data; batch = 50, splt=((3000,3000),))
     #Pair all reference segments with performance segments marked as true/pass
     # compute the feature vector and the add to true-pairs-data
     
-    refT = refT[randperm(length(refT))[1:22]]
+    #refT = refT[randperm(length(refT))[1:22]]
 
     for i=1:length(refT)
         for j=1:length(perT)#all true-performance recordings
@@ -181,6 +148,10 @@ function minibatch3(data; batch = 50, splt=((3000,3000),))
   rf = randperm(nf);
   nt = nf = 0
   bdata = Any[];#batch data for all sets of splits
+
+  splt = decideSplits((tout,fout));
+
+  println("Splits: ", splt);
   for (t,f) in splt
     if(t>0 && f>0)#if there exists (0,0) in splits, skip it
       #forming input-vector for MLP
@@ -205,17 +176,17 @@ function minibatch3(data; batch = 50, splt=((3000,3000),))
   return bdata
 end
 
-function decideSplits(pairData,option)
+function decideSplits(pairData,option=2)
   if option==1
     (tempX,tempY)=pairData;
-    minNumPairs=min(size(tempX,2),size(tempY,2));
+    minNumPairs=min(size(tempX,1),size(tempY,1));
     splitRatio=0.9;#split for train and development
     splts=((Int(floor(minNumPairs*splitRatio)),Int(floor(minNumPairs*splitRatio))),(Int(floor(minNumPairs*(1-splitRatio))),Int(floor(minNumPairs*(1-splitRatio)))));
     return splts;
   elseif option==2
     (tempX,tempY)=pairData;
     #minimum of number of true-pairs and false-pairs will be used for training
-    minNumPairs=min(size(tempX,2),size(tempY,2));
+    minNumPairs=min(size(tempX,1),size(tempY,1));
     splts=((minNumPairs,minNumPairs),(0,0));
     return splts;
   end
@@ -228,13 +199,17 @@ function runTests(data)
     trn = minibatch3(spdata[1]);
     tst = minibatch3(spdata[2]; splt = ((500,500),));
     =#
+    randInds=randperm(length(data));
+    #preparing train data from 32 randomly selected melody pools
+    dataTrain=data[randInds[1:32]];
+    dataTest = data[randInds[33:40]];
 
-    println("Data splitted.")
+    bdata = minibatch3(dataTrain)
 
-    #spdata = map(x->minibatch(x,batchsize), spdata)
-    #println("Minibatch completed.")
-    modelrun(data)
+    a = minibatch3(dataTest)
+    println("Minibatch completed.")
 
+    modelrun(bdata,a; epochs = 10);
 
 end
 
